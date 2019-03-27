@@ -13,6 +13,7 @@
 
 #define CCR_halfMS_RELOAD (16000000L/4000L)		// This will interrupt every 0.25ms
 #define CCR_1MS_RELOAD (16000000L/1000L)
+#define CLK 16000000L
 
 volatile unsigned int msec_cnt0 = 0;
 volatile unsigned int CoinFound = 0;
@@ -121,10 +122,14 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 }
 
 #define PIN_PERIOD ( P2IN & BIT3 )  		// THIS MEANS WE WILL READ FROM PIN 2.3
+#define PERIMETER_PIN_ONE ( P2IN & BIT4 )
+#define PERIMETER_PIN_TWO ( P2IN & BIT6 )
 long int GetPeriod (int n)
 {
 	int i, overflow;
 	unsigned int saved_TCNT1a, saved_TCNT1b;
+	
+	TA0CCR0 = CCR_1MS_RELOAD;				// 1 MS RELOAD TIME
 	
 	overflow=0;
 	TA0CTL&=0xfffe; // Clear the overflow flag
@@ -162,6 +167,8 @@ long int GetPeriod (int n)
 int main(void)
 {
 	int i = 0;
+	float period;
+	float Period_Threshold;
 	
 	
 	WDTCTL = WDTPW | WDTHOLD; // Stop watchdog timer
@@ -180,9 +187,13 @@ int main(void)
 	P2OUT |= BIT3;    // Select pull-up
 	P2REN |= BIT3;    // Enable pull-up
 	
-	P2DIR &= ~(BIT4); // set P2.4 AS AN INPUT PIN12			// PERIMETER DETECTION PIN
+	P2DIR &= ~(BIT4); // set P2.4 AS AN INPUT  PIN 12			// PERIMETER DETECTION PIN
 	P2OUT |= BIT4;    // Select pull-up
 	P2REN |= BIT4;    // Enable pull-up
+	
+	P2DIR &= ~(BIT6); // set P2.6 AS AN INPUT  PIN 19			// PERIMETER DETECTION PIN #2 
+	P2OUT |= BIT6;    // Select pull-up
+	P2REN |= BIT6;    // Enable pull-up
 	
 	
 	
@@ -212,13 +223,10 @@ int main(void)
  	//reload timer
  	//turn it on
  	//wait for it to overflow
- 	//
  	
- 	if(Perim_found){			// CHANGE THIS TO A NOT
- 	//	if((pinregister&0b(correctpin))==0b(correctpin)){
- 		
- 		if (i==0){
- 			i=1;
+ 	if(!Perim_found&&!CoinFound){			// IF PERIM NOT FOUND CHECK
+ 		_DINT();
+ 		if(PERIMETER_PIN_ONE || PERIMETER_PIN_TWO){			// CHECK PEAK DETECTOR PIN TO SEE IF PERIMETER FOUND
  			P1OUT = 0x00;				
    	  		P2OUT = 0x02;
  			state=0;
@@ -226,15 +234,12 @@ int main(void)
  			Perim_found=1;
  			TA0CCR0 = CCR_halfMS_RELOAD;
  			_EINT();
- 			//reset timer to quarter ms
  		}
  	}
- 	else if(!CoinFound){
+ 	if(!CoinFound&&!Perim_found){		// IF COIN NOT FOUND CHECK		
  		_DINT();
- 		//checkperiod
- 		//if(period>somenum){
- 		  if(i == 0){
- 		  	i = 1;
+ 		period = GetPeriod(1) / (CLK * 100.0);
+ 		if(period > Period_Threshold){
  			P1OUT = 0x00;			
    	  		P2OUT = 0x02;
  			state=0;
@@ -244,12 +249,10 @@ int main(void)
  			_EINT(); 			
  		}
  	}
- 	else if(!Perim_found&&!CoinFound){
+ 	if(!Perim_found&&!CoinFound){
  	  _DINT();
  	  P1OUT |= 0x01;				// conditional to set right wheel and left wheel forward
    	  P1OUT |= 0x08;
- 	}
- 	
- 	
-  };
+ 	}	
+  }
 }
