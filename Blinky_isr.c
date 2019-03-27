@@ -1,9 +1,9 @@
 //  Nick's group master code for coin picker upper robot
 
-//      P1OUT ^= 0x01; // Toggle P1.0    LEFT WHEEL FORWARD
-//      P1OUT ^= 0x08; // Toggle P1.3	 RIGHT WHEEL FORWARD
-//      P1OUT ^= 0x10; // Toggle P1.4    LEFT WHEEL BACKWARD
-//      P2OUT ^= 0x01; // Toggle P2.0	 RIGHT WHEEL BACKWARD
+//      P1OUT BIT0; // Toggle P1.0    LEFT WHEEL FORWARD
+//      P1OUT BIT3; // Toggle P1.3	 RIGHT WHEEL FORWARD
+//      P1OUT BIT4; // Toggle P1.4    LEFT WHEEL BACKWARD
+//      P2OUT BIT0; // Toggle P2.0	 RIGHT WHEEL BACKWARD
 
 // PIN 13: SWINGY SWINGY 	P2.5
 // PIN 15: CHOPPY CHOPPY	P1.7
@@ -14,6 +14,10 @@
 #define CCR_halfMS_RELOAD (16000000L/4000L)		// This will interrupt every 0.25ms
 #define CCR_1MS_RELOAD (16000000L/1000L)
 #define CLK 16000000L
+
+#define PIN_PERIOD ( P2IN & BIT3 )  		// THIS MEANS WE WILL READ FROM PIN 2.3
+#define PERIMETER_PIN_ONE ( P2IN & BIT4 )
+#define PERIMETER_PIN_TWO ( P2IN & BIT6 )
 
 volatile unsigned int msec_cnt0 = 0;
 volatile unsigned int CoinFound = 0;
@@ -47,44 +51,44 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 	switch(state){
 		case 0:
 			
-			if(pwm_count>7)P2OUT |= 0x20; // make it one
-			else P2OUT &= 0b11011111; // 13 choppy down Pivots about horizontal-axes, 180 deg downwards
-			P2OUT |= 0x02;
+			if(pwm_count>7)P2OUT |= BIT5; // make it one
+			else P2OUT &= ~BIT5; // 13 choppy down Pivots about horizontal-axes, 180 deg downwards
+			P2OUT |= BIT1;
 			break;
 		case 1:
-			if(pwm_count>7)P1OUT |= 0x80; // make it one
-			else P1OUT &= 0b01111111; // 15 Pivots about z-axes, 90 deg clockwise
-			P2OUT |= 0x02;
+			if(pwm_count>7)P1OUT |= BIT7; // make it one
+			else P1OUT &= ~BIT7; // 15 Pivots about z-axes, 90 deg clockwise
+			P2OUT |= BIT1;
 			break;
 		case 2:
-			if(pwm_count>3)P2OUT |= 0x20; // make it one
-			else P2OUT &= 0b11011111; // 13 Pivots about horizontal-axes, 180 deg upwards
-			P2OUT &= 0b11111101;
+			if(pwm_count>3)P2OUT |= BIT5; // make it one
+			else P2OUT &= ~BIT5; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT &= ~BIT1;
 			break;
 		case 3:
-			if(pwm_count>5)P1OUT |= 0x80; // make it one
-			else P1OUT &= 0b01111111; // 13 Pivots about horizontal-axes, 180 deg upwards
-			P2OUT &= 0b11111101;
+			if(pwm_count>5)P1OUT |= BIT7; // make it one
+			else P1OUT &= ~BIT7; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT &= ~BIT1;
 			break;
 		case 4:
-			if(pwm_count>3)P1OUT |= 0x80; // make it one
-			else P1OUT &= 0b01111111; // 13 Pivots about horizontal-axes, 180 deg upwards
-			P2OUT &= 0b11111101;
+			if(pwm_count>3)P1OUT |= BIT7; // make it one
+			else P1OUT &= ~BIT7; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT &= ~BIT1;
 			break;
 		case 5:
-			if(pwm_count>2)P2OUT |= 0x20; // make it one
-			else P2OUT &= 0b11011111; // 15 Pivots about z-axes, 180 deg clockwise
-			P2OUT &= 0b11111101;
+			if(pwm_count>2)P2OUT |= BIT5; // make it one
+			else P2OUT &= ~BIT5; // 15 Pivots about z-axes, 180 deg clockwise
+			P2OUT &= ~BIT1;
 			break;
 		case 6:
-			if(pwm_count>4)P1OUT |= 0x80; // make it one
-			else P1OUT &= 0b01111111; // 13 Pivots about horizontal-axes, ~45 deg downwards
-			P2OUT &= 0b11111101;
+			if(pwm_count>4)P1OUT |= BIT7; // make it one
+			else P1OUT &= ~BIT7; // 13 Pivots about horizontal-axes, ~45 deg downwards
+			P2OUT &= ~BIT1;
 			break;
 		case 7:
-			if(pwm_count>1)P1OUT |= 0x80; // make it one
-			else P1OUT &= 0b01111111; // 13 Pivots about horizontal-axes, 180 deg upwards
-			P2OUT |= 0x02;
+			if(pwm_count>1)P1OUT |= BIT7; // make it one
+			else P1OUT &= ~BIT7; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT |= BIT1;
 			break;
 		default : break;
 		}
@@ -98,32 +102,30 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 			if(state==2){
 				Perim_found = 0;
 				//state=2;
-				P2OUT = 0x02;
-				P1OUT = 0x00;
+				P1OUT &= ~BIT3;
+				P1OUT &= ~BIT0;		
+				P1OUT &= ~BIT4;				// turn off all of the wheels to be safe
+				P2OUT &= ~BIT0;
 		}
-	}
-		
+	}		
 		switch(state){
 		case 0:	
-			P2OUT = 0x02;
-			P1OUT = 0x00;		
-			P1OUT |= 0x10;
-			P2OUT |= 0x01;
+			P1OUT &= ~BIT3;
+			P1OUT &= ~BIT0;		
+			P1OUT |= BIT4;				// drive backwards for a certain amount of time
+			P2OUT |= BIT0;
 			break;
 		case 1:
-			P2OUT = 0x02;
-			P1OUT = 0x00;
-			P2OUT |= 0x01;
-			P1OUT |= 0x01;
+			P1OUT &= ~BIT3;
+			P1OUT &= ~BIT4;
+			P2OUT |= BIT0;
+			P1OUT |= BIT0;
 			break;
 			default: break;
 		}		
 	}  
 }
 
-#define PIN_PERIOD ( P2IN & BIT3 )  		// THIS MEANS WE WILL READ FROM PIN 2.3
-#define PERIMETER_PIN_ONE ( P2IN & BIT4 )
-#define PERIMETER_PIN_TWO ( P2IN & BIT6 )
 long int GetPeriod (int n)
 {
 	int i, overflow;
@@ -194,12 +196,17 @@ int main(void)
 	P2DIR &= ~(BIT6); // set P2.6 AS AN INPUT  PIN 19			// PERIMETER DETECTION PIN #2 
 	P2OUT |= BIT6;    // Select pull-up
 	P2REN |= BIT6;    // Enable pull-up
+			
+	P1OUT &= ~BIT0;			// initialize all DRIVING pins to 0 to not fook a mosfets
+	P1OUT &= ~BIT3;			// set this to 1 so magnet is off
+	P1OUT &= ~BIT4;
+	P2OUT &= ~BIT0;
 	
+	P2OUT &= ~BIT5;			// initialize the arm pins to 0
+	P1OUT &= ~BIT7;
 	
+	P2OUT |= BIT1;			// set the magnet pin to one to turn it off
 	
-		
-	P1OUT = 0x00;			// initialize all pins to 0 to not fook a mosfets
-	P2OUT = 0x02;			// set this to 1 so magnet is off
 	   
     if (CALBC1_16MHZ != 0xFF) // This checks if the system is recalibrated
     {
@@ -211,7 +218,7 @@ int main(void)
     TA0CCR0 = CCR_halfMS_RELOAD;				// CHANGE AS NECESSARY FOR INTERRUPT TIMER
     TA0CTL = TASSEL_2 + MC_2;  // SMCLK, contmode 
    // _BIS_SR(GIE); // Enter LPM0 w/ interrupt  THIS ALLOWS INTERRUPTS
-    _DINT();
+    _DINT();			// REMEMBER TO DISABLE
  	while (1){
  	// neutral state: CoinFound = 0 so we just going forward
  	// CheckForCoin Function will check frequency of square wave from inductor to verify if coin
@@ -227,8 +234,10 @@ int main(void)
  	if(!Perim_found&&!CoinFound){			// IF PERIM NOT FOUND CHECK
  		_DINT();
  		if(PERIMETER_PIN_ONE || PERIMETER_PIN_TWO){			// CHECK PEAK DETECTOR PIN TO SEE IF PERIMETER FOUND
- 			P1OUT = 0x00;				
-   	  		P2OUT = 0x02;
+ 			P1OUT &= ~BIT0;				
+   	  		P1OUT &= ~BIT3;
+   	  		P1OUT &= ~BIT4;			// turn off all the wheel just to be safe
+	 		P2OUT &= ~BIT0;
  			state=0;
  			counter=0;
  			Perim_found=1;
@@ -240,8 +249,10 @@ int main(void)
  		_DINT();
  		period = GetPeriod(1) / (CLK * 100.0);
  		if(period > Period_Threshold){
- 			P1OUT = 0x00;			
-   	  		P2OUT = 0x02;
+ 			P1OUT &= ~BIT0;			
+   	  		P1OUT &= ~BIT3;
+   	  		P1OUT &= ~BIT4;
+	 		P2OUT &= ~BIT0;
  			state=0;
  			counter=0;
  			CoinFound=1;
@@ -251,8 +262,10 @@ int main(void)
  	}
  	if(!Perim_found&&!CoinFound){
  	  _DINT();
- 	  P1OUT |= 0x01;				// conditional to set right wheel and left wheel forward
-   	  P1OUT |= 0x08;
+ 	  P1OUT |= BIT0;				// conditional to set right wheel and left wheel forward
+   	  P1OUT |= BIT3;
+   	  P1OUT &= ~BIT4;			// turn off backward wheels to be safe
+	  P2OUT &= ~BIT0;
  	}	
   }
 }
