@@ -17,7 +17,7 @@
 
 #define PIN_PERIOD ( P2IN & BIT3 )  		// THIS MEANS WE WILL READ FROM PIN 2.3
 #define PERIMETER_PIN_ONE ( P2IN & BIT4 )
-#define PERIMETER_PIN_TWO ( P2IN & BIT6 )
+#define PERIMETER_PIN_TWO ( P1IN & BIT6 )
 
 volatile unsigned int msec_cnt0 = 0;
 volatile unsigned int CoinFound = 0;
@@ -189,14 +189,9 @@ int main(void)
 	P2OUT |= BIT3;    // Select pull-up
 	P2REN |= BIT3;    // Enable pull-up
 	
-	P2DIR &= ~(BIT4); // set P2.4 AS AN INPUT  PIN 12			// PERIMETER DETECTION PIN
-	P2OUT |= BIT4;    // Select pull-up
-	P2REN |= BIT4;    // Enable pull-up
+	P2DIR &= ~(BIT4); // set P2.4 AS AN INPUT  PIN 12			// PERIMETER DETECTION PIN	
+	P1DIR &= ~(BIT6); // set P1.6 AS AN INPUT  PIN 19			// PERIMETER DETECTION PIN #2 
 	
-	P2DIR &= ~(BIT6); // set P2.6 AS AN INPUT  PIN 19			// PERIMETER DETECTION PIN #2 
-	P2OUT |= BIT6;    // Select pull-up
-	P2REN |= BIT6;    // Enable pull-up
-			
 	P1OUT &= ~BIT0;			// initialize all DRIVING pins to 0 to not fook a mosfets
 	P1OUT &= ~BIT3;			// set this to 1 so magnet is off
 	P1OUT &= ~BIT4;
@@ -218,6 +213,8 @@ int main(void)
     TA0CCR0 = CCR_halfMS_RELOAD;				// CHANGE AS NECESSARY FOR INTERRUPT TIMER
     TA0CTL = TASSEL_2 + MC_2;  // SMCLK, contmode 
    // _BIS_SR(GIE); // Enter LPM0 w/ interrupt  THIS ALLOWS INTERRUPTS
+//    uart_init();
+//    waitms(500); // Wait for putty to start.
     _DINT();			// REMEMBER TO DISABLE
  	while (1){
  	// neutral state: CoinFound = 0 so we just going forward
@@ -230,6 +227,14 @@ int main(void)
  	//reload timer
  	//turn it on
  	//wait for it to overflow
+ 	
+ /*	uart_puts("Period measurement using the free running counter of timer TA0.\n"
+	          "Connect signal to P2.3 (pin 11).\n");
+	          while(1){
+	          period=GetPeriod(100);
+	          uart_puts("f=");
+			  PrintNumber(PERIMETER_PIN_TWO, 10, 6);
+	          }*/
  	
  	if(!Perim_found&&!CoinFound){			// IF PERIM NOT FOUND CHECK
  		_DINT();
