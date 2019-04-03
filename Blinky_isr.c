@@ -18,7 +18,7 @@
 #define HEIGHT_PIN ( P1IN & BIT7 )
 #define RXD BIT1 // Receive Data (RXD) at P1.1
 #define TXD BIT2 // Transmit Data (TXD) at P1.2
-#define BAUD 9600
+#define BAUD 115200
 
 volatile unsigned int msec_cnt0 = 0;
 volatile unsigned int CoinFound = 0;
@@ -27,7 +27,7 @@ volatile long unsigned int counter = 0;
 volatile unsigned char state = 0;
 volatile unsigned char Perim_found = 0;
 volatile unsigned char coincount =0;
-volatile unsigned char done = 1;
+volatile unsigned char done = 0;
 
 void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer0 A0 ISR. Only used by CC0
 {
@@ -153,10 +153,10 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 	
 	else if (done){
 		counter++;
-    	if(counter>5000){
+    	if(counter>4000){
 			counter=0;
 			state++;
-			if(state==4){
+			if(state==9){
 				done = 0;
 				P1OUT &= ~BIT3;
 				P1OUT &= ~BIT0;		
@@ -171,24 +171,48 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 				P1OUT &= ~BIT4;				// ROTATE ONE WAY
 				P2OUT |= BIT0;
 				break;
-			case 1:
+			case 1:	
+				P1OUT &= ~BIT3;
+				P1OUT |= BIT0;		
+				P1OUT &= ~BIT4;				// ROTATE ONE WAY
+				P2OUT |= BIT0;
+				break;
+			case 2:
 				P1OUT |= BIT3;
 				P1OUT &= ~BIT0;		
 				P1OUT |= BIT4;				// ROTATE THE OTHER WAY
 				P2OUT &= ~BIT0;
 				break;
-			case 2:
+			case 3:
+				P1OUT |= BIT3;
+				P1OUT &= ~BIT0;		
+				P1OUT |= BIT4;				// ROTATE THE OTHER WAY
+				P2OUT &= ~BIT0;
+				break;
+			case 4:
 				P1OUT &= ~BIT3;
 				P1OUT &= ~BIT0;		
 				P1OUT &= ~BIT4;				// turn off all of the wheels to be safe
 				P2OUT &= ~BIT0;
-				if(pwm_count>8)P2OUT |= BIT4; // make it one
-				else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, 180 deg upwards
+				if(pwm_count>3)P2OUT |= BIT5; // make it one
+				else P2OUT &= ~BIT5; 
 				break;
-			case 3:
-				if(pwm_count>1)P2OUT |= BIT4; // make it one
-				else P2OUT &= ~BIT5; // 15 Pivots about z-axes, 180 deg clockwise
+			case 5:
+				if(pwm_count>0)P2OUT |= BIT4; // make it one
+				else P2OUT &= ~BIT4; 
+				break;		
+			case 6:
+				if(pwm_count>3)P2OUT |= BIT4; // make it one
+				else P2OUT &= ~BIT4; 
 				break;	
+			case 7:
+				if(pwm_count>0)P2OUT |= BIT4; // make it one
+				else P2OUT &= ~BIT4; 
+				break;
+			case 8:
+				if(pwm_count>3)P2OUT |= BIT4; // make it one
+				else P2OUT &= ~BIT4; 
+				break;
 				default: break;
 		}		
 		
@@ -235,39 +259,6 @@ long int GetPeriod (int n)
 	if(saved_TCNT1b<saved_TCNT1a) overflow--; // Added an extra overflow.  Get rid of it.
 
 	return overflow*0x10000L+(saved_TCNT1b-saved_TCNT1a);
-}
-
-void uart_init(void)
-{
-	P1SEL  |= (RXD | TXD);                       
-  	P1SEL2 |= (RXD | TXD);                       
-  	UCA0CTL1 |= UCSSEL_2; // SMCLK
-  	UCA0BR0 = (CLK/BAUD)%0x100;
-  	UCA0BR1 = (CLK/BAUD)/0x100;
-  	UCA0MCTL = UCBRS0; // Modulation UCBRSx = 1
-  	UCA0CTL1 &= ~UCSWRST; // Initialize USCI state machine
-}
-
-unsigned char uart_getc()
-{
-    while (!(IFG2&UCA0RXIFG)); // USCI_A0 RX buffer ready?
-	return UCA0RXBUF;
-}
-
-void uart_putc (char c)
-{
-	if(c=='\n')
-	{
-		while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
-	  	UCA0TXBUF = '\r'; // TX
-  	}
-	while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
-  	UCA0TXBUF = c; // TX
-}
-
-void uart_puts(const char *str)
-{
-     while(*str) uart_putc(*str++);
 }
 
 int main(void)
@@ -322,9 +313,6 @@ int main(void)
 	//TRYING TO USE ADC LOL
 	ADC10CTL0 = SREF_0 + ADC10SHT_3 + REFON + ADC10ON; 
     _DINT();			// REMEMBER TO DISABLE
-	//bluetooth code
-	uart_init();
-	
  	while (1){
  	// neutral state: CoinFound = 0 so we just going forward
  	// CheckForCoin Function will check frequency of square wave from inductor to verify if coin
@@ -381,7 +369,6 @@ int main(void)
  			state=0;
  			counter=0;
  			CoinFound=1;
-			uart_putc('1');
  			TA0CCR0 = CCR_halfMS_RELOAD;
  			_EINT(); 			
  		}
