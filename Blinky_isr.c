@@ -18,7 +18,7 @@
 #define HEIGHT_PIN ( P1IN & BIT7 )
 #define RXD BIT1 // Receive Data (RXD) at P1.1
 #define TXD BIT2 // Transmit Data (TXD) at P1.2
-#define BAUD 115200
+#define BAUD 9600
 
 volatile unsigned int msec_cnt0 = 0;
 volatile unsigned int CoinFound = 0;
@@ -237,6 +237,39 @@ long int GetPeriod (int n)
 	return overflow*0x10000L+(saved_TCNT1b-saved_TCNT1a);
 }
 
+void uart_init(void)
+{
+	P1SEL  |= (RXD | TXD);                       
+  	P1SEL2 |= (RXD | TXD);                       
+  	UCA0CTL1 |= UCSSEL_2; // SMCLK
+  	UCA0BR0 = (CLK/BAUD)%0x100;
+  	UCA0BR1 = (CLK/BAUD)/0x100;
+  	UCA0MCTL = UCBRS0; // Modulation UCBRSx = 1
+  	UCA0CTL1 &= ~UCSWRST; // Initialize USCI state machine
+}
+
+unsigned char uart_getc()
+{
+    while (!(IFG2&UCA0RXIFG)); // USCI_A0 RX buffer ready?
+	return UCA0RXBUF;
+}
+
+void uart_putc (char c)
+{
+	if(c=='\n')
+	{
+		while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
+	  	UCA0TXBUF = '\r'; // TX
+  	}
+	while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
+  	UCA0TXBUF = c; // TX
+}
+
+void uart_puts(const char *str)
+{
+     while(*str) uart_putc(*str++);
+}
+
 int main(void)
 {
 	int i = 0;
@@ -289,6 +322,9 @@ int main(void)
 	//TRYING TO USE ADC LOL
 	ADC10CTL0 = SREF_0 + ADC10SHT_3 + REFON + ADC10ON; 
     _DINT();			// REMEMBER TO DISABLE
+	//bluetooth code
+	uart_init();
+	
  	while (1){
  	// neutral state: CoinFound = 0 so we just going forward
  	// CheckForCoin Function will check frequency of square wave from inductor to verify if coin
@@ -345,6 +381,7 @@ int main(void)
  			state=0;
  			counter=0;
  			CoinFound=1;
+			uart_putc('1');
  			TA0CCR0 = CCR_halfMS_RELOAD;
  			_EINT(); 			
  		}
