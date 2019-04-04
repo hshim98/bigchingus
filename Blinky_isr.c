@@ -18,7 +18,7 @@
 #define HEIGHT_PIN ( P1IN & BIT7 )
 #define RXD BIT1 // Receive Data (RXD) at P1.1
 #define TXD BIT2 // Transmit Data (TXD) at P1.2
-#define BAUD 115200
+#define BAUD 9600
 
 volatile unsigned int msec_cnt0 = 0;
 volatile unsigned int CoinFound = 0;
@@ -41,13 +41,13 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 	if (CoinFound){
 	
 	counter++;
-    if(counter>4000){
+    if(counter>2000){
 		counter=0;
 		state++;
-		if(state==9){
+		if(state==14){
 			CoinFound = 0;
 			coincount++;
-			if (coincount == 3){				// here we set the max # of coins to find
+			if (coincount == 20){				// here we set the max # of coins to find
 				P1OUT &= ~BIT3;
 				P1OUT &= ~BIT0;		
 				P1OUT &= ~BIT4;				// turn off all of the wheels to be safe
@@ -61,7 +61,7 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 		 
 	switch(state){
 		case 0:	
-			if (counter < 500){
+			if (counter < 750){
 			P1OUT &= ~BIT3;
 			P1OUT &= ~BIT0;		
 			P1OUT |= BIT4;				// drive backwards for a certain amount of time
@@ -96,21 +96,46 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 			P2OUT &= ~BIT1;
 			break;
 		case 5:
-			if(pwm_count>5)P2OUT |= BIT4; // make it one
-			else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, 180 deg upwards
+			if(pwm_count>5)P2OUT |= BIT5; // make it one
+			else P2OUT &= ~BIT5; // 13 Pivots about horizontal-axes, 180 deg upwards
 			P2OUT &= ~BIT1;
-			break;
+			break;				
 		case 6:
-			if(pwm_count>3)P2OUT |= BIT4; // make it one
+			if(pwm_count>6)P2OUT |= BIT4; // make it one
 			else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, 180 deg upwards
 			P2OUT &= ~BIT1;
 			break;
 		case 7:
+			if(pwm_count>5)P2OUT |= BIT4; // make it one
+			else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT &= ~BIT1;
+			break;
+		case 8:
+			if(pwm_count>4)P2OUT |= BIT4; // make it one
+			else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT &= ~BIT1;
+			break;					
+		case 9:
+			if(pwm_count>3)P2OUT |= BIT4; // make it one
+			else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, 180 deg upwards
+			P2OUT &= ~BIT1;
+			break;
+		case 10:
+			if(pwm_count>4)P2OUT |= BIT5; // make it one
+			else P2OUT &= ~BIT5; // 15 Pivots about z-axes, 180 deg clockwise
+			P2OUT &= ~BIT1;
+			break;
+		case 11:
+			if(pwm_count>3)P2OUT |= BIT5; // make it one
+			else P2OUT &= ~BIT5; // 15 Pivots about z-axes, 180 deg clockwise
+			P2OUT &= ~BIT1;
+			break;
+		case 12:
 			if(pwm_count>2)P2OUT |= BIT5; // make it one
 			else P2OUT &= ~BIT5; // 15 Pivots about z-axes, 180 deg clockwise
 			P2OUT &= ~BIT1;
 			break;
-		case 8:
+		case 13:
 			if(pwm_count>3)P2OUT |= BIT4; // make it one
 			else P2OUT &= ~BIT4; // 13 Pivots about horizontal-axes, ~45 deg downwards
 			P2OUT |= BIT1;
@@ -220,6 +245,44 @@ void __attribute__ ((interrupt(TIMER0_A0_VECTOR))) Timer0_A0_ISR (void) // Timer
 		
 }
 
+void uart_init(void)
+{
+	P1SEL  |= (RXD | TXD);                       
+  	P1SEL2 |= (RXD | TXD);                       
+  	UCA0CTL1 |= UCSSEL_2; // SMCLK
+  	UCA0BR0 = (CLK/BAUD)%0x100;
+  	UCA0BR1 = (CLK/BAUD)/0x100;
+  	UCA0MCTL = UCBRS0; // Modulation UCBRSx = 1
+  	UCA0CTL1 &= ~UCSWRST; // Initialize USCI state machine
+}
+unsigned char uart_getc()
+{
+    while (!(IFG2&UCA0RXIFG)); // USCI_A0 RX buffer ready?
+	return UCA0RXBUF;
+}
+
+void uart_putc (char c)
+{
+	if(c=='\n')
+	{
+		while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
+	  	UCA0TXBUF = '\r'; // TX
+  	}
+	while (!(IFG2&UCA0TXIFG)); // USCI_A0 TX buffer ready?
+  	UCA0TXBUF = c; // TX
+}
+void wait_1ms (void)
+{
+	unsigned int saved_TA0R;
+	
+	saved_TA0R=TA0R; // Save timer A0 free running count
+	while ((TA0R-saved_TA0R)<(16000000L/1000L));
+}
+
+void waitms(int ms)
+{
+	while(--ms) wait_1ms();
+}
 
 long int GetPeriod (int n)
 {
@@ -261,13 +324,71 @@ long int GetPeriod (int n)
 	return overflow*0x10000L+(saved_TCNT1b-saved_TCNT1a);
 }
 
+void Remote_Control(){
+	char direction;
+	while (1) {
+		direction = uart_getc();
+		if (direction == 'w'){
+		P1OUT |= BIT0;				// conditional to set right wheel and left wheel forward
+   	    P1OUT |= BIT3;
+   	    P1OUT &= ~BIT4;			// turn off backward wheels to be safe
+	    P2OUT &= ~BIT0;
+		}
+		else if (direction == 'a'){
+		P1OUT |= BIT3;
+		P1OUT &= ~BIT0;		
+		P1OUT |= BIT4;				// ROTATE THE OTHER WAY
+		P2OUT &= ~BIT0;
+		}
+		else if (direction == 's'){
+		P1OUT &= ~BIT3;
+		P1OUT &= ~BIT0;		
+		P1OUT |= BIT4;				// drive backwards for a certain amount of time
+		P2OUT |= BIT0;
+		}
+		else if (direction == 'd'){
+		P1OUT &= ~BIT3;
+		P1OUT |= BIT0;		
+		P1OUT &= ~BIT4;				// ROTATE THE OTHER WAY
+		P2OUT |= BIT0;
+		}
+		else if (direction == 'c'){
+		P1OUT &= ~BIT0;			
+   		P1OUT &= ~BIT3;
+   		P1OUT &= ~BIT4;
+		P2OUT &= ~BIT0;
+		return;	
+		}
+		else if (direction == ' '){
+		P1OUT &= ~BIT0;			
+   		P1OUT &= ~BIT3;
+   		P1OUT &= ~BIT4;
+		P2OUT &= ~BIT0;
+		CoinFound = 1;
+		_EINT();
+		while (CoinFound) {}
+		_DINT();
+		P1OUT &= ~BIT0;			
+   		P1OUT &= ~BIT3;
+   		P1OUT &= ~BIT4;
+		P2OUT &= ~BIT0;
+		}
+		else{
+		P1OUT &= ~BIT0;			
+   		P1OUT &= ~BIT3;
+   		P1OUT &= ~BIT4;
+		P2OUT &= ~BIT0;
+		}
+	}	
+}
+
 int main(void)
 {
 	int i = 0;
 	float period;
 	float Period_Threshold;
 	int v1;
-	
+	char choice;
 	
 	WDTCTL = WDTPW | WDTHOLD; // Stop watchdog timer
 	P1DIR |= 0x01; // Set P1.0 		PIN 2			LEFT WHEEL FORWARD
@@ -311,28 +432,20 @@ int main(void)
     TA0CTL = TASSEL_2 + MC_2;  // SMCLK, contmode 
     
 	//TRYING TO USE ADC LOL
-	ADC10CTL0 = SREF_0 + ADC10SHT_3 + REFON + ADC10ON; 
+	ADC10CTL0 = SREF_0 + ADC10SHT_3 + REFON + ADC10ON;
+	uart_init(); 
+	waitms(5000);
     _DINT();			// REMEMBER TO DISABLE
- 	while (1){
- 	// neutral state: CoinFound = 0 so we just going forward
- 	// CheckForCoin Function will check frequency of square wave from inductor to verify if coin
- 	// CheckForPerimeter will be looking if perimeter, if there is we adjust pwm to turn the cart
- 	
- 	//if(pinforcoinfound==1)state =0, counter=0,coinfound=1
- 	//for frequency, disable timer 1 at beginning
- 	//find the frequency
- 	//reload timer
- 	//turn it on
- 	//wait for it to overflow
- 	
- /*	uart_puts("Period measurement using the free running counter of timer TA0.\n"
-	          "Connect signal to P2.3 (pin 11).\n");
-	          while(1){
-	          period=GetPeriod(100);
-	          uart_puts("f=");
-			  PrintNumber(PERIMETER_PIN_TWO, 10, 6);
-	          }*/
- 	
+    
+    do{
+    choice = uart_getc();
+    }while (choice != '1' && choice != '2');
+    if (choice == '2'){
+    	Remote_Control();
+    }
+ 	while (1){ 	
+ 			/*	if(IFG2&UCA0RXIFG)choice=uart_getc();
+ 				if(choice=='2')uart_putc('F');*/
  	if(!Perim_found&&!CoinFound){			// IF PERIM NOT FOUND CHECK
  		_DINT();
  		ADC10CTL1 = INCH_6;				// PIN 1.6 IS PERIMETER DETECTION PIN
@@ -340,11 +453,6 @@ int main(void)
  		ADC10CTL0 |= ENC + ADC10SC;    // Sampling and conversion start
 		while (ADC10CTL1 & ADC10BUSY); // ADC10BUSY?
 		v1=(ADC10MEM*3290L)/1023L;
-/*		ADC10CTL1 = INCH_7;				// PIN 1.7 IS PERIMETER DETECTION PIN
-		ADC10AE0 |= 0x80;
- 		ADC10CTL0 |= ENC + ADC10SC;    // Sampling and conversion start
-		while (ADC10CTL1 & ADC10BUSY);
-		v2=(ADC10MEM*3290L)/1023L;*/
 		
  		if(v1 > 500){			// CHECK PEAK DETECTOR PIN TO SEE IF PERIMETER FOUND
  			P1OUT &= ~BIT0;				
@@ -361,7 +469,7 @@ int main(void)
  	if(!CoinFound&&!Perim_found){		// IF COIN NOT FOUND CHECK		
  		_DINT();
  		period = (GetPeriod(100) / (CLK * 10000.0));				// threshold frequency 5815000 ish
- 		if((1.0 / period) > 5910000){			// 6015000 is best freq
+ 		if((1.0 / period) > 5825000){			// 6015000 is best freq
  			P1OUT &= ~BIT0;			
    	  		P1OUT &= ~BIT3;
    	  		P1OUT &= ~BIT4;
@@ -369,6 +477,7 @@ int main(void)
  			state=0;
  			counter=0;
  			CoinFound=1;
+ 			uart_putc('1');
  			TA0CCR0 = CCR_halfMS_RELOAD;
  			_EINT(); 			
  		}
@@ -384,11 +493,14 @@ int main(void)
  	// attempting new code for height detection 
  	
  	if (HEIGHT_PIN){
- 		P1OUT &= ~BIT0;			
-   		P1OUT &= ~BIT3;
-   		P1OUT &= ~BIT4;
-		P2OUT &= ~BIT0;	
-		break;
+ 		state=0;
+ 		counter=0;
+ 		Perim_found=1;
+ 		uart_putc('2');
+ 		TA0CCR0 = CCR_halfMS_RELOAD;
+ 		_EINT();
+ 		while (Perim_found){}
+ 		_DINT();
  	}
  	
  	
@@ -405,4 +517,5 @@ int main(void)
  	break;
  	}
   }
+
 }
